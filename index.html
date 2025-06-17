@@ -9,10 +9,25 @@
     <link rel="stylesheet" href="Assets/Satoshi_Complete/Fonts/WEB/css/satoshi.css">
   </head>
   <body>
+    <div id="start-overlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: url('Assets/office-modern-loft-2024-10-12-14-20-00-utc.jpg') center center / cover no-repeat; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999;">
+      <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.6); z-index: 1;"></div>
+      <div style="z-index: 2; position: relative; display: flex; flex-direction: column; align-items: center;">
+        <h1 style="font-family: 'Satoshi', sans-serif; margin-bottom: 1rem;">Welcome to the Virtual Office Tour</h1>
+        <button id="start-button" style="padding: 1rem 2rem; font-size: 1.2rem; background: #004cff; color: white; border: none; border-radius: 8px; cursor: pointer;">Begin Tour</button>
+      </div>
+    </div>
     <a-scene>
       <a-assets>
         <img id="room1" src="Assets/office-modern-loft-2024-10-12-14-20-00-utc.jpg">
         <img id="room2" src="Assets/office-modern-loft-2024-10-18-07-37-50-utc.jpg">
+        <audio id="welcome-audio" src="Assets/Audio/welcome.mp3"></audio>
+        <audio id="audio1" src="Assets/Audio/hotspot 1.mp3"></audio>
+        <audio id="audio2" src="Assets/Audio/hotspot 2.mp3"></audio>
+        <audio id="audio3" src="Assets/Audio/hotspot 3.mp3"></audio>
+        <audio id="audio4" src="Assets/Audio/hotspot 4.mp3"></audio>
+        <audio id="audio5" src="Assets/Audio/hotspot 5.mp3"></audio>
+        <audio id="audio6" src="Assets/Audio/hotspot 6.mp3"></audio>
+        <audio id="complete-audio" src="Assets/Audio/complete.mp3"></audio>
       </a-assets>
       <a-sky id="sky" src="#room1" position="0 0 0"></a-sky>
       
@@ -25,6 +40,8 @@
           <!-- Bottom line of text -->
           <a-text font="roboto" value="Step into our digital workspace and get a feel for where the magic happens. In this short tour, you’ll explore two key areas of our office — each with interactive hotspots that share important info about how we work, collaborate, and care for each other. Take your time, click around, and get to know us better. Ready? Let’s go!" width="9" position="0.5 -0.5 0.01"></a-text>
         </a-entity>
+        <a-entity id="welcome-sound" sound="src: #welcome-audio; positional: false; volume: 1"></a-entity>
+        <a-entity id="complete-sound" sound="src: #complete-audio; positional: false; volume: 1"></a-entity>
         <a-entity id="hotspot1"
                   geometry="primitive: circle; radius: 0.5"
                   material="color: white; opacity: 1; shader: flat"
@@ -358,9 +375,43 @@
     </style>
     <script>
       // Hotspot and overlay tracking variables moved to top for access in all components
+      // Global variable for welcome sound instance
+      let welcomeSoundInstance = null;
       const hotspotIdsRoom1 = ['hotspot1', 'hotspot2', 'hotspot3', 'hotspot4'];
       const hotspotIdsRoom2 = ['hotspot5', 'hotspot6'];
       const visitedHotspots = new Set();
+
+      // Audio mapping for hotspot overlays, plus complete sound entity for central audio control
+      const audioMap = {
+        hotspot1: new Audio('Assets/Audio/hotspot 1.mp3'),
+        hotspot2: new Audio('Assets/Audio/hotspot 2.mp3'),
+        hotspot3: new Audio('Assets/Audio/hotspot 3.mp3'),
+        hotspot4: new Audio('Assets/Audio/hotspot 4.mp3'),
+        hotspot5: new Audio('Assets/Audio/hotspot 5.mp3'),
+        hotspot6: new Audio('Assets/Audio/hotspot 6.mp3'),
+        complete: document.querySelector('#complete-sound')
+      };
+
+      function playHotspotAudio(hotspotId) {
+        // Stop welcome audio if playing
+        if (welcomeSoundInstance && welcomeSoundInstance.isPlaying) {
+          welcomeSoundInstance.stopSound();
+        }
+        // Stop completion sound if playing
+        if (audioMap.complete && audioMap.complete.components.sound?.isPlaying) {
+          audioMap.complete.components.sound.stopSound();
+        }
+        Object.keys(audioMap).forEach(id => {
+          if (id !== hotspotId && audioMap[id] instanceof Audio) {
+            audioMap[id].pause();
+            audioMap[id].currentTime = 0;
+          }
+        });
+        const audio = audioMap[hotspotId];
+        if (audio) {
+          audio.play();
+        }
+      }
 
       AFRAME.registerComponent('hotspot-click', {
         init: function () {
@@ -377,6 +428,8 @@
               const overlay = document.getElementById(overlayId);
               if (overlay) {
                 overlay.style.display = 'flex';
+                // Play audio for this hotspot
+                playHotspotAudio(id);
                 this.el.setAttribute('material', 'color', 'gray');
                 const plusIcon = this.el.querySelector('[text]');
                 if (plusIcon) {
@@ -468,6 +521,18 @@ function checkCompletion() {
   const allVisitedRoom2 = hotspotIdsRoom2.every(id => visitedHotspots.has(id));
   if (allVisitedRoom1 && allVisitedRoom2) {
     document.getElementById('restart-message').style.display = 'flex';
+    // Stop all hotspot audio before playing complete sound
+    Object.values(audioMap).forEach(audio => {
+      if (audio instanceof Audio) {
+        audio.pause();
+        audio.currentTime = 0;
+      }
+    });
+    // Play complete sound
+    const completeSound = document.querySelector('#complete-sound');
+    if (completeSound && completeSound.components.sound) {
+      completeSound.components.sound.playSound();
+    }
     confetti({
       particleCount: 150,
       spread: 70,
@@ -497,5 +562,15 @@ document.getElementById('restart-button').addEventListener('click', () => {
 });
     </script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script>
+      document.getElementById('start-button').addEventListener('click', () => {
+        document.getElementById('start-overlay').style.display = 'none';
+        const welcomeSound = document.querySelector('#welcome-sound');
+        if (welcomeSound && welcomeSound.components.sound) {
+          welcomeSoundInstance = welcomeSound.components.sound;
+          welcomeSoundInstance.playSound();
+        }
+      });
+    </script>
   </body>
 </html>
