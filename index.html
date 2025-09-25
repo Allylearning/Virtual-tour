@@ -279,7 +279,7 @@
         </a-entity>
       </a-entity>
 
-    <a-entity id="cam" camera look-controls="enabled: false" position="0 4 0" autorotate-camera="speed: 8">
+    <a-entity id="cam" camera look-controls="enabled: false" position="0 4 0" autorotate-camera="speed: 3">
         <a-entity cursor="fuse: false; rayOrigin: mouse"
                   position="0 0 -1"
                   material="color: white; shader: flat"
@@ -376,9 +376,56 @@
     </style>
     <script>
 AFRAME.registerComponent('autorotate-camera', {
-  schema: { speed: { type: 'number', default: 8 } }, // degrees per second
+  schema: {
+    speed: { type: 'number', default: 2 },       // degrees per second
+    resumeAfter: { type: 'number', default: 4500 } // ms after interaction ends to resume spinning
+  },
+  init: function () {
+    this.paused = false;
+    this._resumeT = null;
+
+    this._onInteractStart = () => {
+      this.paused = true;
+      // Allow the user to look around while interacting
+      if (this.el.components['look-controls']) {
+        this.el.setAttribute('look-controls', 'enabled', true);
+      }
+      if (this._resumeT) clearTimeout(this._resumeT);
+    };
+
+    this._onInteractEnd = () => {
+      if (this._resumeT) clearTimeout(this._resumeT);
+      this._resumeT = setTimeout(() => {
+        this.paused = false;
+        // Disable look-controls again so the auto-rotate stays smooth hands-free
+        if (this.el.components['look-controls']) {
+          this.el.setAttribute('look-controls', 'enabled', false);
+        }
+      }, this.data.resumeAfter);
+    };
+
+    const scene = this.el.sceneEl;
+    // Start: any kind of user movement/zoom should pause
+    scene.addEventListener('mousedown', this._onInteractStart);
+    scene.addEventListener('touchstart', this._onInteractStart, { passive: true });
+    scene.addEventListener('wheel', this._onInteractStart, { passive: true });
+    // End: when input is released, schedule resume
+    window.addEventListener('mouseup', this._onInteractEnd);
+    window.addEventListener('touchend', this._onInteractEnd, { passive: true });
+  },
+
+  remove: function () {
+    const scene = this.el.sceneEl;
+    scene.removeEventListener('mousedown', this._onInteractStart);
+    scene.removeEventListener('touchstart', this._onInteractStart, { passive: true });
+    scene.removeEventListener('wheel', this._onInteractStart, { passive: true });
+    window.removeEventListener('mouseup', this._onInteractEnd);
+    window.removeEventListener('touchend', this._onInteractEnd, { passive: true });
+    if (this._resumeT) clearTimeout(this._resumeT);
+  },
+
   tick: function (time, delta) {
-    if (!delta) return;
+    if (!delta || this.paused) return;
     const rot = this.el.getAttribute('rotation');
     rot.y += this.data.speed * (delta / 1000);
     this.el.setAttribute('rotation', rot);
